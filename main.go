@@ -7,6 +7,7 @@ import (
 	"os"
 	"errors"
 	"net/http"
+	"time"
 	"io"
 	"encoding/json"
 	"github.com/matteoleccese/pokedexcli/internal/pokecache"
@@ -81,6 +82,40 @@ func commandMap(fc *FunctionConfig) error {
 	// Getting the next map location
 	url := fc.next;
 
+	// Create a new cache with a 5 second interval
+	const cacheInterval = time.Second * 5;
+
+	// Create a new cache
+	cache := pokecache.NewCache(cacheInterval);
+
+	// Checking if the URL is in the cache
+	cacheData, ok := cache.Get(url);
+
+	if ok {
+		// Initialize a new Location struct
+		location := Location{}
+
+		// Unmarshal the JSON response into the Location struct
+		err := json.Unmarshal(cacheData, &location)
+
+		// Check if there was an error unmarshalling the JSON
+		if err != nil {
+			errors.New("Error unmarshalling JSON: " + err.Error())
+		}
+
+		// Update the FunctionConfig struct with the next and previous map locations
+		fc.next = location.Next;
+		fc.previous = location.Previous;
+
+		// Now we access to the results
+		for _, result := range location.Results {
+			// Print the name of the location
+			fmt.Println(result.Name);
+		}
+
+		return nil;
+	}
+
 	// If the next map location is empty, set it to the PokeAPI URL
 	if url == "" {
 		url = POKE_API_URL;
@@ -106,6 +141,9 @@ func commandMap(fc *FunctionConfig) error {
 
 	// Initialize a new Location struct
 	location := Location{}
+
+	// Add the data to the cache
+	cache.Add(url, body);
 
 	// Unmarshal the JSON response into the Location struct
 	err = json.Unmarshal(body, &location)
@@ -132,6 +170,40 @@ func commandMapB(fc *FunctionConfig) error {
 	// Getting the next map location
 	url := fc.previous;
 
+	// Create a new cache with a 5 second interval
+	const cacheInterval = time.Second * 5;
+
+	// Create a new cache
+	cache := pokecache.NewCache(cacheInterval);
+
+	// Checking if the URL is in the cache
+	cacheData, ok := cache.Get(url);
+
+	if ok {
+		// Initialize a new Location struct
+		location := Location{}
+
+		// Unmarshal the JSON response into the Location struct
+		err := json.Unmarshal(cacheData, &location)
+
+		// Check if there was an error unmarshalling the JSON
+		if err != nil {
+			errors.New("Error unmarshalling JSON: " + err.Error())
+		}
+
+		// Update the FunctionConfig struct with the next and previous map locations
+		fc.next = location.Next;
+		fc.previous = location.Previous;
+
+		// Now we access to the results
+		for _, result := range location.Results {
+			// Print the name of the location
+			fmt.Println(result.Name);
+		}
+
+		return nil;
+	}
+
 	// If the next map location is empty, set it to the PokeAPI URL
 	if url == "" {
 		url = POKE_API_URL;
@@ -157,6 +229,9 @@ func commandMapB(fc *FunctionConfig) error {
 
 	// Initialize a new Location struct
 	location := Location{}
+
+	// Add the data to the cache
+	cache.Add(url, body);
 
 	// Unmarshal the JSON response into the Location struct
 	err = json.Unmarshal(body, &location)
