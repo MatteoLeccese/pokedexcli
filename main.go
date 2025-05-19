@@ -23,7 +23,7 @@ type FunctionConfig struct {
 type CliCommand struct {
 	name        string
 	description string
-	callback    func(*FunctionConfig) error
+	callback    func(*FunctionConfig, string) error
 }
 
 // Location result slice struct
@@ -38,6 +38,63 @@ type Location struct {
 	Next		  string						`json:"next"`
 	Previous	string						`json:"previous"`
 	Results		[]LocationResult	`json:"results"`
+}
+
+// EncounterLocation struct
+type EncounterLocation struct {
+	Name	string	`json:"name"`
+	Url		string	`json:"url"`
+}
+
+// Location struct
+type EncounterVersionDetails struct {
+	Rate			int								`json:"rate"`
+	Version   EncounterLocation	`json:"version"`
+}
+
+// EncounterMethodRates struct
+type EncounterMethodRates struct {
+	Encounter_method	EncounterLocation					`json:"encounter_method"`
+	Version_details		[]EncounterVersionDetails	`json:"version_details"`
+}
+
+// EncounterNames struct
+type EncounterNames struct {
+	Language	[]EncounterLocation `json:"language"`
+	Name			string							`json:"name"`
+}
+
+// EncounterDetails struct
+type EncounterDetails struct {
+	Chance						int									`json:"chance"`
+	Condition_values	[]interface{}				`json:"condition_values"`
+	Max_level		      int									`json:"max_level"`
+	Method						EncounterLocation		`json:"method"`
+	Min_level					int									`json:"min_level"`
+}
+
+// VersionDetails struct
+type VersionDetails struct {
+	Encounter_details	[]EncounterDetails	`json:"encounter_details"`
+	Max_chance				int									`json:"max_chance"`
+	Version						EncounterLocation		`json:"version"`
+}
+
+// PokemonEncounters struct
+type PokemonEncounters struct {
+	Pokemon					EncounterLocation	`json:"pokemon"`
+	Version_details []VersionDetails	`json:"version_details"`
+}
+
+// Pokemon Location Area struct
+type LocationArea struct {
+	Encounter_method_rates	[]EncounterMethodRates	`json:"encounter_method_rates"`
+	Game_index							int											`json:"game_index"`
+	Id											int 										`json:"id"`
+	Location								EncounterLocation				`json:"location"`
+	Name										string									`json:"name"`
+	Names										[]EncounterNames				`json:"names"`
+	Pokemon_encounters			[]PokemonEncounters			`json:"pokemon_encounters"`
 }
 
 // Constants for the PokeAPI URL
@@ -56,14 +113,14 @@ func cleanInput(test string) []string {
 	return slice;
 }
 
-func commandExit(fc *FunctionConfig) error {
+func commandExit(fc *FunctionConfig, argument string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!");
 
 	os.Exit(0);
 	return nil;
 }
 
-func commandHelp(fc *FunctionConfig) error {
+func commandHelp(fc *FunctionConfig, argument string) error {
 	multiString := `
 	Welcome to the Pokedex!
 	Usage:
@@ -78,7 +135,7 @@ func commandHelp(fc *FunctionConfig) error {
 	return nil;
 }
 
-func commandMap(fc *FunctionConfig) error {
+func commandMap(fc *FunctionConfig, argument string) error {
 	// Getting the next map location
 	url := fc.next;
 
@@ -166,7 +223,7 @@ func commandMap(fc *FunctionConfig) error {
 	return nil;
 }
 
-func commandMapB(fc *FunctionConfig) error {
+func commandMapB(fc *FunctionConfig, argument string) error {
 	// Getting the next map location
 	url := fc.previous;
 
@@ -254,6 +311,88 @@ func commandMapB(fc *FunctionConfig) error {
 	return nil;
 }
 
+// Function to get the list of all the Pokémon located on a given area
+func commandExplore(fc *FunctionConfig, argument string) error {
+	// Making the url to the PokeAPI
+	url := fmt.Sprintf("%s/%s", POKE_API_URL, argument);
+
+	// Create a new cache with a 5 second interval
+	// const cacheInterval = time.Second * 5;
+
+	// // Create a new cache
+	// cache := pokecache.NewCache(cacheInterval);
+
+	// // Checking if the URL is in the cache
+	// cacheData, ok := cache.Get(url);
+
+	// if ok {
+	// 	// CODE HERE
+	// }
+
+	// Make a GET request to the PokeAPI URL
+	res, err := http.Get(url)
+
+	// Check if the request was successful
+	if err != nil {
+		errors.New("Error making GET request: " + err.Error())
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(res.Body)
+	// Close the response body
+	defer res.Body.Close()
+
+	// Check if there was an error reading the response body
+	if err != nil {
+		errors.New("Error reading response body: " + err.Error())
+	}
+
+	// Initialize a new Location struct
+	locationArea := LocationArea{}
+
+	// Add the data to the cache
+	// cache.Add(url, body);
+
+	// Unmarshal the JSON response into the Location struct
+	err = json.Unmarshal(body, &locationArea)
+
+	// Check if there was an error unmarshalling the JSON
+	if err != nil {
+		errors.New("Error unmarshalling JSON: " + err.Error())
+	}
+
+	// Telling the user what we are exploring
+	fmt.Println("Exploring %s...", argument);
+
+	pokemonSlice := locationArea.Pokemon_encounters;
+
+	if len(pokemonSlice) == 0 {
+		fmt.Println("No Pokémon found in this area.");
+		return nil;
+	}
+
+	fmt.Println("Found Pokemon:");
+
+	for _, pokemonEncounter := range pokemonSlice {
+		// Check if Pokemon is nil
+		if pokemonEncounter.Pokemon.Name == "" {
+			continue;
+			// fmt.Println("No Pokemon found in this area.");
+			// return nil;
+		}
+
+		// Print the name of the locationArea
+		fmt.Println("- %s", pokemonEncounter.Pokemon.Name);
+	}
+	// // Now we access to the results
+	// for _, pokemonEncounter := range pokemonSlice {
+	// 	// Print the name of the locationArea
+	// 	fmt.Println("- %s", pokemonEncounter.Pokemon.Name);
+	// }
+
+	return nil;
+}
+
 // Main function of the program
 func main() {
 
@@ -285,6 +424,11 @@ func main() {
 			description: "Displays the name of the previous 20 map locations",
 			callback:    commandMapB,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Displays the list of all the Pokémon located on a given area.",
+			callback:    commandExplore,
+		},
 	}
 
 	// Create a new scanner to read from the input
@@ -306,6 +450,14 @@ func main() {
 		// Check if the input is "exit"
 		user_command := clean_input[0];
 
+		// Variable to hold the argument
+		argument := "";
+
+		// Check if there is a second argument
+		if len(clean_input) > 1 {
+			argument = clean_input[1];
+		}
+
 		// Check if the command is supported
 		command, supported_command := supportedCommands[user_command];
 
@@ -316,6 +468,6 @@ func main() {
 		}
 
 		// Call the command's callback function
-		command.callback(fc);
+		command.callback(fc, argument);
 	}
 }
